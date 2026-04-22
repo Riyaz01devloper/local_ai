@@ -228,12 +228,30 @@ Fire: 101
       }
 
       const result = await resultPromise;
-      const finalText = result.text || accumulated;
+const finalText = result.text || accumulated;
+
+// 🔥 SAVE CHAT TO DATABASE
+try {
+  await fetch("http://localhost:5000/api/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      user_id: 1,
+      message: text,
+      response: finalText,
+    }),
+  });
+} catch (err) {
+  console.log("Error saving chat:", err);
+}      
       setMessages((prev) => {
         const updated = [...prev];
         updated[assistantIdx] = {
           role: 'assistant',
           text: finalText,
+          
           stats: {
             tokens: result.tokensUsed,
             tokPerSec: result.tokensPerSecond,

@@ -26,5 +26,10 @@ export default defineConfig({
         ]
       }
     })
-  ]
+  ],
+
+  // RunAnywhere llama.cpp must not be pre-bundled by Vite
+  // optimizeDeps: {
+  //   exclude: ['@runanywhere/web-llamacpp']
+  // }
 })

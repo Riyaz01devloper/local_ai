@@ -1,46 +1,51 @@
-<<<<<<< HEAD
-const { saveChat } = require("../models/chatmodels");
-const chatModel = require("../models/chatmodels");
-const handleChat = async (req, res) => {
-  const { user_id, message, response } = req.body;
-
-  try {
-    await saveChat(user_id, message, response);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-module.exports = { handleChat };
-=======
 const chatModel = require("../models/chatmodels");
 
+// Save chat
 exports.saveChat = async (req, res) => {
   try {
-console.log("Incoming request:", req.body);
-
     const { user_id, message, response } = req.body;
+
+    // Basic validation
+    if (!user_id || !message || !response) {
+      return res.status(400).json({
+        success: false,
+        error: "user_id, message and response are required",
+      });
+    }
 
     await chatModel.saveChat(user_id, message, response);
 
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to save chat" });
+    return res.status(201).json({
+      success: true,
+      message: "Chat saved successfully",
+    });
+  } catch (error) {
+    console.error("Save chat error:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to save chat",
+    });
   }
 };
 
+// Get user's chat history
 exports.getChats = async (req, res) => {
   try {
     const { user_id } = req.params;
 
-    const [rows] = await chatModel.getChats(user_id);
+    const rows = await chatModel.getChats(user_id);
 
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch chats" });
+    return res.status(200).json({
+      success: true,
+      data: rows,
+    });
+  } catch (error) {
+    console.error("Fetch chats error:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch chats",
+    });
   }
 };
->>>>>>> 5c341e7d22136779ddcae3b01cc46072d1dd275d

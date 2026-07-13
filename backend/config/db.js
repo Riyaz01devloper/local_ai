@@ -1,34 +1,21 @@
-const mysql = require("mysql2");
+const { Pool } = require("pg");
+require("dotenv").config();
 
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-<<<<<<< HEAD
-  password: "",   
-  database: "ai_emergency"
+const db = new Pool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT) || 5432,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
 });
 
-db.connect(err => {
-  if (err) throw err;
-  console.log("MySQL Connected");
-=======
-  password: "", // XAMPP default
-  database: "ai_emergency",
-});
-
-const saveChat = (user_id, message, response) => {
-  return db.promise().query(
-    "INSERT INTO chat_history (user_id, message, response) VALUES (?, ?, ?)",
-    [user_id, message, response]
-  );
-};
-db.connect((err) => {
-  if (err) {
-    console.error("DB Error:", err);
-  } else {
-    console.log("MySQL Connected");
-  }
->>>>>>> 5c341e7d22136779ddcae3b01cc46072d1dd275d
-});
+db.connect()
+  .then((client) => {
+    console.log("PostgreSQL Connected");
+    client.release();
+  })
+  .catch((error) => {
+    console.error("PostgreSQL connection failed:", error.message);
+  });
 
 module.exports = db;

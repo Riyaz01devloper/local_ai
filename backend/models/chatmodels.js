@@ -1,17 +1,30 @@
 const db = require("../config/db");
 
-const saveChat = (user_id, message, response) => {
-  const sql = "INSERT INTO chat_history (user_id, message, response) VALUES (?, ?, ?)";
-  return db.promise().query(sql, [user_id, message, response]);
+// Save chat message
+const saveChat = async (user_id, message, response) => {
+  const query = `
+    INSERT INTO chat_history (user_id, message, response)
+    VALUES ($1, $2, $3)
+    RETURNING *
+  `;
+const result = await db.query(query, [user_id,message,response]);
+return result.rows[0];
 };
 
-const getChats = (user_id) => {
-<<<<<<< HEAD
-  const sql = "SELECT * FROM chat_history WHERE user_id = ?";
-=======
-  const sql = "SELECT * FROM chat_history WHERE user_id = ? ORDER BY created_at ASC";
->>>>>>> 5c341e7d22136779ddcae3b01cc46072d1dd275d
-  return db.promise().query(sql, [user_id]);
+// Get user's chat history
+const getChats = async (user_id) => {
+  const query = `
+    SELECT *
+    FROM chat_history
+    WHERE user_id = $1
+    ORDER BY created_at ASC
+  `;
+
+  const result = await db.query(query, [user_id]);
+  return result.rows;
 };
 
-module.exports = { saveChat, getChats };
+module.exports = {
+  saveChat,
+  getChats,
+};

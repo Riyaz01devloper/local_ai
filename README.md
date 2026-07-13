@@ -1,0 +1,45 @@
+# Emergency Assistant AI
+
+Emergency Assistant AI is a privacy-focused, browser-based AI assistant designed for both everyday support and emergency situations. The application runs entirely on-device, enabling chat, voice, and vision capabilities without requiring cloud inference.
+
+## Features
+
+* AI-powered chat assistant
+* Voice interaction with Speech-to-Text and Text-to-Speech
+* Vision-based scene understanding using camera input
+* Document-aware Q&A for PDFs, DOCX files, and images
+* Emergency support mode with quick-access helplines
+* Fully local inference for enhanced privacy
+
+## Tech Stack
+
+* React 19 + TypeScript
+* Tailwind CSS
+* RunAnywhere Web SDK
+* llama.cpp
+* ONNX Runtime
+* Tesseract.js
+* PDF.js
+* Mammoth
+
+## Live Demo
+
+https://emergencyassistantai.vercel.app/
+
+## Installation
+
+```bash
+npm install
+npm run dev
+```
+
+## Future Improvements
+
+* Multi-language support
+* Region-specific emergency services
+* Enhanced model optimization
+* Advanced emergency response workflows
+
+## License
+
+MIT License

@@ -1,9 +1,16 @@
 {
   "name": "backend",
   "version": "1.0.0",
+<<<<<<< HEAD
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+=======
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+>>>>>>> 5c341e7d22136779ddcae3b01cc46072d1dd275d
   },
   "keywords": [],
   "author": "",
@@ -12,6 +19,10 @@
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+<<<<<<< HEAD
+=======
+    "express": "^5.2.1",
+>>>>>>> 5c341e7d22136779ddcae3b01cc46072d1dd275d
     "mysql2": "^3.22.2"
   }
 }

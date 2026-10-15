@@ -1,18 +1,31 @@
-const express = require("express");
-const cors = require("cors");
-const helmet =require("helmet");
-const rateLimit = require("express-rate-limit");
-const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 require("dotenv").config();
 
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+
+const geminiRoutes = require("./routes/geminiRoutes");
 const chatRoutes = require("./routes/chatRoutes");
+const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// Security headers
 app.use(helmet());
 
+// CORS — must be before routes
+app.use(
+  cors({
+    // P0-7 fix: removed leading space from origin string
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+// Rate limiting
 app.use(
   "/api",
   rateLimit({
@@ -22,11 +35,8 @@ app.use(
     legacyHeaders: false,
   })
 );
-app.use(cors({
-  origin:process.env.FRONTEND_URL || " http://localhost:5173",
-  methods:["GET", "POST"],
-  allowedHeaders:["Content-Type", "Authorization"],
-}));
+
+// P0-4 fix: single express.json() call with 10mb limit
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -40,16 +50,12 @@ app.get("/", (req, res) => {
 
 // API Routes
 app.use("/api/chat", chatRoutes);
+app.use("/api/gemini", geminiRoutes);
 
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
-});
+// P0-5 fix: only use the middleware errorHandler pair — remove duplicate inline 404
 app.use(notFound);
 app.use(errorHandler);
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`ResQ AI server running on port ${PORT}`);

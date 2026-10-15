@@ -5,3 +5,7 @@ dist/
 *.tsbuildinfo
 .playwright-mcp/
 *.png
+.env
+.env.*
+!.env.example
+

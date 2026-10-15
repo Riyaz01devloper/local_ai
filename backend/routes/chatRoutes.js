@@ -9,4 +9,7 @@ router.post("/", chatController.saveChat);
 // Get chat history by user ID
 router.get("/:user_id", chatController.getChats);
 
+// Clear chat history
+router.delete("/:user_id", chatController.clearChatHistory);
+
 module.exports = router;

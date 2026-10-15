@@ -1,51 +1,65 @@
-const chatModel = require("../models/chatmodels");
+const chatModel = require("../models/chatmodel");
 
-// Save chat
 exports.saveChat = async (req, res) => {
   try {
     const { user_id, message, response } = req.body;
 
-    // Basic validation
-    if (!user_id || !message || !response) {
-      return res.status(400).json({
-        success: false,
-        error: "user_id, message and response are required",
-      });
-    }
-
     await chatModel.saveChat(user_id, message, response);
 
-    return res.status(201).json({
+    res.json({
       success: true,
-      message: "Chat saved successfully",
     });
-  } catch (error) {
-    console.error("Save chat error:", error);
+  } catch (err) {
+    console.error("Save chat error:", err);
 
-    return res.status(500).json({
-      success: false,
+    res.status(500).json({
       error: "Failed to save chat",
     });
   }
 };
 
-// Get user's chat history
 exports.getChats = async (req, res) => {
   try {
     const { user_id } = req.params;
 
-    const rows = await chatModel.getChats(user_id);
+    const result = await chatModel.getChats(user_id);
 
-    return res.status(200).json({
+    res.json({
       success: true,
-      data: rows,
+      data: result.rows,
     });
-  } catch (error) {
-    console.error("Fetch chats error:", error);
+  } catch (err) {
+    console.error("Get chats error:", err);
 
-    return res.status(500).json({
-      success: false,
+    res.status(500).json({
       error: "Failed to fetch chats",
+    });
+  }
+};
+
+exports.clearChatHistory = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
+    await chatModel.deleteChats(user_id);
+
+    res.status(200).json({
+      success: true,
+      message: "Chat history cleared successfully",
+    });
+  } catch (err) {
+    console.error("Clear chat error:", err);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to clear chat history",
     });
   }
 };

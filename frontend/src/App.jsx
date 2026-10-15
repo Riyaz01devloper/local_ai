@@ -1,192 +1,291 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+
 import { getAIResponse } from "./services/ai";
+import { saveChat, getChatHistory, clearChatHistory } from "./services/chatApi";
+
+import Sidebar from "./components/Sidebar";
+import ChatView from "./components/ChatView";
+import EmergencyView from "./components/EmergencyView";
+import VoiceView from "./components/VoiceView";
+import PrivacyView from "./components/PrivacyView";
+import ConfirmModal from "./components/ConfirmModal";
+
+import "./styles/App.css";
+
+// Single shared user for this deployment.
+// In a real multi-user app this would come from an auth system.
+const USER_ID = "user_1";
+
 function App() {
-  const [input, setInput] = useState("");
+  // ── Navigation ──────────────────────────────────────────────
+  const [activeView, setActiveView] = useState("chat");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // ── Chat state ────────────────────────────────────────────────
   const [messages, setMessages] = useState([]);
+  const [isSending, setIsSending] = useState(false);
+  // historyLoading could gate a skeleton UI in future — unused for now
 
-  const[showCamera, setShowCamera] = useState(false);
-  const[image,setImage]=useState(null);
+  // ── Camera state ──────────────────────────────────────────────
+  const [showCamera, setShowCamera] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+  const previewImageRef = useRef(null); // track for cleanup
 
-  const getResponse = (text) => {
-    text = text.toLowerCase();
+  // ── Modal state ───────────────────────────────────────────────
+  const [confirmModal, setConfirmModal] = useState(null);
 
-    if (text.includes("burn")) {
-      return "Run cool water over the burn for 10 minutes.";
-    }
-    if (text.includes("fire")) {
-      return "Move away from fire and cover your nose with cloth.";
-    }
-    if (text.includes("faint")) {
-      return "Check breathing and keep the person lying flat.";
-    }
+  // ── Online status ─────────────────────────────────────────────
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-    return "Stay calm. Help is on the way.";
-  };
-
-  const handleSend = async (text) => {
-  const userText = text || input;
-  if (!userText) return;
-
-  const userMsg = { type: "user", text: userText };
-  setMessages((prev) => [...prev, userMsg]);
-
-  const response =
-    (await getAIResponse(userText)) || getResponse(userText);
-
-  const botMsg = { type: "bot", text: response };
-
-  speak(response);
-
-  setMessages((prev) => [...prev, botMsg]);
-  setInput("");
-};
-  // 🎤 Voice Recognition
-  const startListening = () => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert("Voice not supported in this browser");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.start();
-
-    recognition.onresult = (event) => {
-      const speechText = event.results[0][0].transcript;
-      handleSend(speechText);
+  useEffect(() => {
+    const handleOnline  = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online",  handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online",  handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
+  }, []);
+
+  // ── Load chat history on mount ────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHistory = async () => {
+      try {
+        const history = await getChatHistory(USER_ID);
+        if (cancelled) return;
+
+        const formatted = history.flatMap((chat) => [
+          { type: "user", text: chat.message },
+          { type: "bot",  text: chat.response },
+        ]);
+
+        setMessages(formatted);
+      } catch (err) {
+        if (!cancelled) {
+          console.warn("Could not load chat history (backend may not be running):", err.message);
+          // Not a fatal error — app works without history
+        }
+      } finally {
+        // history load complete — could update a loading indicator here
+      }
+    };
+
+    loadHistory();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Image URL cleanup on unmount ───────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (previewImageRef.current) {
+        URL.revokeObjectURL(previewImageRef.current);
+      }
+    };
+  }, []);
+
+  // ── TTS speak ─────────────────────────────────────────────────
+  const speak = useCallback((text) => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  // ── Send message ──────────────────────────────────────────────
+  const handleSend = useCallback(async (text) => {
+    const userText = text?.trim();
+    if (!userText || isSending) return;
+
+    setIsSending(true);
+    setActiveView("chat");
+
+    setMessages((prev) => [...prev, { type: "user", text: userText }]);
+
+    try {
+      const response = await getAIResponse(userText);
+
+      setMessages((prev) => [...prev, { type: "bot", text: response }]);
+
+      speak(response);
+
+      // Persist to backend (non-fatal if it fails)
+      try {
+        await saveChat(USER_ID, userText, response);
+      } catch (err) {
+        console.warn("Failed to persist chat:", err.message);
+      }
+    } catch (err) {
+      console.error("Failed to get AI response:", err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "bot",
+          text: "⚠️ Unable to process your request. Please check your connection and try again.",
+        },
+      ]);
+    } finally {
+      setIsSending(false);
+    }
+  }, [isSending, speak]);
+
+  // ── New conversation (clear local only) ───────────────────────
+  const handleNewChat = useCallback(() => {
+    setMessages([]);
+    setActiveView("chat");
+  }, []);
+
+  // ── Clear all history (with confirmation) ─────────────────────
+  const handleClearHistory = useCallback(() => {
+    setConfirmModal({
+      title: "Delete all chat history?",
+      description:
+        "This will permanently delete all saved conversations from the database. This action cannot be undone.",
+      confirmLabel: "Delete History",
+      confirmDanger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await clearChatHistory(USER_ID);
+          setMessages([]);
+        } catch (err) {
+          console.error("Failed to clear history:", err.message);
+        }
+      },
+    });
+  }, []);
+
+  // ── Camera ────────────────────────────────────────────────────
+  const handleToggleCamera = useCallback(() => {
+    setShowCamera((prev) => !prev);
+  }, []);
+
+  const handleCaptureImage = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // P1-6 fix: revoke previous object URL
+    if (previewImageRef.current) {
+      URL.revokeObjectURL(previewImageRef.current);
+    }
+
+    const url = URL.createObjectURL(file);
+    previewImageRef.current = url;
+    setPreviewImage(url);
+
+    const notice =
+      "📷 Image received. Image-based emergency analysis is not yet available — " +
+      "visual AI model support is pending. Please describe the emergency in text for guidance.";
+
+    setMessages((prev) => [...prev, { type: "bot", text: notice }]);
+    speak(notice);
+  }, [speak]);
+
+  // ── Render ────────────────────────────────────────────────────
+  const renderView = () => {
+    switch (activeView) {
+      case "chat":
+        return (
+          <ChatView
+            messages={messages}
+            isSending={isSending}
+            onSend={handleSend}
+            onVoice={() => setActiveView("voice")}
+            showCamera={showCamera}
+            onToggleCamera={handleToggleCamera}
+            onCaptureImage={handleCaptureImage}
+            previewImage={previewImage}
+          />
+        );
+      case "emergency":
+        return (
+          <EmergencyView
+            onAskAI={(text) => { handleSend(text); setActiveView("chat"); }}
+          />
+        );
+      case "voice":
+        return (
+          <VoiceView
+            onTranscript={(text) => { handleSend(text); setActiveView("chat"); }}
+            isSending={isSending}
+          />
+        );
+      case "camera":
+        setShowCamera(true);
+        setActiveView("chat");
+        return null;
+      case "privacy":
+        return (
+          <PrivacyView
+            onClearAllData={handleClearHistory}
+            messageCount={messages.length}
+            isOnline={isOnline}
+          />
+        );
+      default:
+        return null;
+    }
   };
-const speak = (text)=>{
-  const msg = new SpeechSynthesisUtterance(text);
-  msg.rate=1;
-  msg.pitch=1;
-  speechSynthesis.speak(msg);
-}
-const handleImageAI = (file) =>{
-  const response = "Image analyzed. Possible injury detected. Apply basic first aid.";
 
-  const botMsg={type:"bot", text:response};
-  speak(response);
-  setMessages((prev)=>[...prev,botMsg]);
-}
-
-const openCamera = () =>{
-  setShowCamera(true);
-}
-const captureImage = (e) =>{
-  const file =e.target.files[0];
-  if(file){
-    setImage(URL.createObjectURL(file));
-    handleImageAI(file);
-  }
-};
   return (
-  <div style={{
-    minHeight: "100vh",
-    background: "#0f172a",
-    color: "white",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    padding: "20px"
-  }}>
-    
-    <h1 style={{ marginBottom: "20px" }}>🚑 AI Emergency Assistant</h1>
-
-    {/* Chat Box */}
-    <div style={{
-      width: "100%",
-      maxWidth: "500px",
-      height: "300px",
-      overflowY: "auto",
-      background: "#1e293b",
-      padding: "15px",
-      borderRadius: "10px",
-      marginBottom: "15px"
-    }}>
-      {messages.map((msg, index) => (
-        <div key={index} style={{
-          marginBottom: "10px",
-          textAlign: msg.type === "user" ? "right" : "left"
-        }}>
-          <span style={{
-            background: msg.type === "user" ? "#3b82f6" : "#334155",
-            padding: "8px 12px",
-            borderRadius: "10px",
-            display: "inline-block"
-          }}>
-            {msg.text}
-          </span>
-        </div>
-      ))}
-    </div>
-
-    {/* Input */}
-    <div style={{ display: "flex", width: "100%", maxWidth: "500px" }}>
-      <input
-        type="text"
-        placeholder="Describe emergency..."
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        style={{
-          flex: 1,
-          padding: "10px",
-          borderRadius: "5px",
-          border: "none"
-        }}
+    <div className="app-shell">
+      {/* Sidebar */}
+      <Sidebar
+        activeView={activeView}
+        onNavigate={setActiveView}
+        onNewChat={handleNewChat}
+        onClearHistory={handleClearHistory}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
       />
 
-      <button onClick={() => handleSend()} style={{
-        marginLeft: "5px",
-        padding: "10px",
-        background: "#22c55e",
-        border: "none",
-        color: "white",
-        borderRadius: "5px"
-      }}>
-        Send
-      </button>
+      {/* Main content */}
+      <div className="main-content">
+        {/* Mobile top bar */}
+        <header className="topbar">
+          <button
+            className="topbar-menu-btn"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open navigation menu"
+          >
+            ☰
+          </button>
+          <span className="topbar-title">ResQ AI</span>
+          <div className="topbar-right">
+            <span
+              className="status-badge"
+              title={isOnline ? "Connected to backend" : "Offline — using local fallback"}
+            >
+              <span className={`status-dot ${isOnline ? "online" : "offline"}`} />
+              {isOnline ? "Online" : "Offline"}
+            </span>
+          </div>
+        </header>
+
+        {/* Active page view */}
+        {renderView()}
+      </div>
+
+      {/* Confirmation modal */}
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          description={confirmModal.description}
+          confirmLabel={confirmModal.confirmLabel}
+          confirmDanger={confirmModal.confirmDanger}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
-
-    <div style={{ marginTop: "10px" }}>
-  <button onClick={() => handleSend("fire")} style={{ marginRight: "5px" }}>
-    🔥 Fire
-  </button>
-
-  <button onClick={() => handleSend("burn")} style={{ marginRight: "5px" }}>
-    🤕 Burn
-  </button>
-
-  <button onClick={() => handleSend("faint")}>
-    😵 Faint
-  </button>
-</div>
-
-    {/* Action Buttons */}
-    <div style={{ marginTop: "15px" }}>
-      <button onClick={startListening} style={{ marginRight: "10px" }}>
-        🎤 Speak
-      </button>
-
-      <button onClick={openCamera}>
-        📷 Camera
-      </button>
-    </div>
-
-    {/* Camera */}
-    {showCamera && (
-      <input
-        type="file"
-        accept="image/*"
-        onChange={captureImage}
-        style={{ marginTop: "10px" }}
-      />
-    )}
-
-  </div>
-);
+  );
 }
 
 export default App;

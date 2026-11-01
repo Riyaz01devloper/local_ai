@@ -15,11 +15,19 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Extract user_id from path or query
-  // Vercel path rewrites pass URL or req.query
-  const urlParts = (req.url || "").split("?")[0].split("/").filter(Boolean);
-  const pathUserId = urlParts[urlParts.length - 1] !== "chat" ? urlParts[urlParts.length - 1] : null;
-  const userId = pathUserId || req.query?.user_id || "user_1";
+  // Extract user_id from query or path
+  let userId = req.query?.user_id;
+  if (!userId) {
+    const rawUrl = (req.url || "").split("?")[0];
+    const parts = rawUrl.split("/").filter(Boolean);
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && lastPart !== "chat" && lastPart !== "chat.js") {
+      userId = decodeURIComponent(lastPart);
+    }
+  }
+  if (!userId) {
+    userId = "user_1";
+  }
 
   if (req.method === "POST") {
     try {

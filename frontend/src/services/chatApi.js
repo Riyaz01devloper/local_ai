@@ -69,7 +69,8 @@ export async function saveChat(userId, message, response) {
 // Fetch chat history for a user
 export async function getChatHistory(userId) {
   try {
-    const res = await fetch(`${API_URL}/chat/${userId}`);
+    // Try query param first
+    const res = await fetch(`${API_URL}/chat?user_id=${encodeURIComponent(userId)}`);
 
     if (res.ok) {
       const json = await res.json();
@@ -90,7 +91,7 @@ export async function clearChatHistory(userId) {
   clearLocalChats(userId);
 
   try {
-    const res = await fetch(`${API_URL}/chat/${userId}`, {
+    const res = await fetch(`${API_URL}/chat?user_id=${encodeURIComponent(userId)}`, {
       method: "DELETE",
     });
 

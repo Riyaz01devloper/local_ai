@@ -12,11 +12,11 @@
       "destination": "/api/health.js"
     },
     {
-      "source": "/api/chat",
-      "destination": "/api/chat.js"
+      "source": "/api/chat/(.*)",
+      "destination": "/api/chat.js?user_id=$1"
     },
     {
-      "source": "/api/chat/:path*",
+      "source": "/api/chat",
       "destination": "/api/chat.js"
     },
     {

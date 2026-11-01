@@ -56,7 +56,7 @@ function PrivacyView({ onClearAllData, messageCount, isOnline }) {
             <div className="panel-row">
               <div>
                 <div className="panel-row-label">Conversation history</div>
-                <div className="panel-row-desc">Stored in a PostgreSQL database on your backend server (localhost:5000). Not sent to third parties.</div>
+                <div className="panel-row-desc">Stored in local browser storage and serverless database. Not sent to third parties.</div>
               </div>
               <div className="panel-row-value">Local DB</div>
             </div>

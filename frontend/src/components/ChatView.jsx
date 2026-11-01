@@ -118,62 +118,6 @@ function ChatView({
   return (
     <div className="page-view saas-page">
       <div className="chat-view saas-chat-view">
-        {/* SaaS Chat Top Subheader */}
-        <header className="chat-header saas-chat-header">
-          <div className="chat-header-left">
-            <div className="model-chip">
-              <span className="model-dot" />
-              <span className="model-name">ResQ AI Assistant</span>
-              <span className="model-version">Gemini 2.5 Flash / Local Triage</span>
-            </div>
-          </div>
-
-          <div className="chat-header-actions">
-            {/* Active Voice Playing Indicator & Direct Stop Button */}
-            {isSpeaking && (
-              <button
-                className="saas-stop-voice-btn"
-                onClick={onStopSpeaking}
-                title="Stop current voice reply (Click to silence)"
-                aria-label="Stop voice reply"
-              >
-                <span className="audio-wave">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-                <span>Stop Voice</span>
-              </button>
-            )}
-
-            {/* Voice Reply Mode Toggle */}
-            <button
-              className={`saas-pill-btn ${voiceReplyEnabled ? "active-voice" : ""}`}
-              onClick={onToggleVoiceReply}
-              title={
-                voiceReplyEnabled
-                  ? "Automatic voice replies are enabled. Click to mute."
-                  : "Automatic voice replies are muted. Click to enable speech."
-              }
-              aria-label="Toggle voice replies"
-            >
-              <span className="btn-icon">{voiceReplyEnabled ? "🔊" : "🔇"}</span>
-              <span className="btn-text">{voiceReplyEnabled ? "Voice ON" : "Voice MUTED"}</span>
-            </button>
-
-            {/* Quick New Chat */}
-            <button
-              className="saas-pill-btn"
-              onClick={onNewChat}
-              title="Start a new triage session"
-              aria-label="New conversation"
-            >
-              <span className="btn-icon">✏️</span>
-              <span className="btn-text">New Triage</span>
-            </button>
-          </div>
-        </header>
-
         {/* Camera / Image Attachment Drawer */}
         {showCamera && (
           <div className="camera-panel saas-camera-panel">

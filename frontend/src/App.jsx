@@ -375,11 +375,16 @@ function App() {
           <div className="topbar-brand">
             <span className="topbar-logo">+</span>
             <span className="topbar-title">ResQ AI</span>
-            <span className="topbar-badge">Emergency Assistant</span>
+            <span className="topbar-model-badge">
+              <span className="ping-dot" />
+              <span>Gemini 2.5 Flash</span>
+              <span className="divider-slash">/</span>
+              <span>Offline Triage</span>
+            </span>
           </div>
 
           <div className="topbar-right">
-            {/* Active Speech Indicator & Stop Control */}
+            {/* Active Speech Indicator & Direct Stop Control */}
             {isSpeaking && (
               <button
                 className="voice-speaking-pill active"
@@ -395,13 +400,23 @@ function App() {
               </button>
             )}
 
-            {/* Voice Toggle */}
+            {/* Voice Reply Mode Toggle */}
             <button
               className={`voice-toggle-btn ${voiceReplyEnabled ? "enabled" : "disabled"}`}
               onClick={toggleVoiceReply}
               title={voiceReplyEnabled ? "Voice replies are ON (Click to mute)" : "Voice replies are MUTED (Click to enable)"}
             >
               {voiceReplyEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
+            </button>
+
+            {/* Quick New Conversation */}
+            <button
+              className="topbar-action-btn"
+              onClick={handleNewChat}
+              title="Start a new emergency conversation"
+            >
+              <span className="btn-icon">✏️</span>
+              <span className="btn-text">New Triage</span>
             </button>
 
             {/* Network / Model Status Badge */}

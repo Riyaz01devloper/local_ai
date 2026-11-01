@@ -12,9 +12,8 @@ import ConfirmModal from "./components/ConfirmModal";
 
 import "./styles/App.css";
 
-// Single shared user for this deployment.
-// In a real multi-user app this would come from an auth system.
 const USER_ID = "user_1";
+const VOICE_PREF_KEY = "resq_voice_reply_enabled";
 
 function App() {
   // ── Navigation ──────────────────────────────────────────────
@@ -25,12 +24,23 @@ function App() {
   // ── Chat state ────────────────────────────────────────────────
   const [messages, setMessages] = useState([]);
   const [isSending, setIsSending] = useState(false);
-  // historyLoading could gate a skeleton UI in future — unused for now
+
+  // ── Voice / Speech state ──────────────────────────────────────
+  const [voiceReplyEnabled, setVoiceReplyEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem(VOICE_PREF_KEY);
+      return saved !== null ? saved === "true" : true;
+    } catch (e) {
+      return true;
+    }
+  });
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentlySpeakingIdx, setCurrentlySpeakingIdx] = useState(null);
 
   // ── Camera state ──────────────────────────────────────────────
   const [showCamera, setShowCamera] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
-  const previewImageRef = useRef(null); // track for cleanup
+  const previewImageRef = useRef(null);
 
   // ── Modal state ───────────────────────────────────────────────
   const [confirmModal, setConfirmModal] = useState(null);
@@ -39,15 +49,89 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    const handleOnline  = () => setIsOnline(true);
+    const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online",  handleOnline);
+    window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     return () => {
-      window.removeEventListener("online",  handleOnline);
+      window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  // ── Stop Speech Synthesis ─────────────────────────────────────
+  const stopSpeaking = useCallback(() => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    setCurrentlySpeakingIdx(null);
+  }, []);
+
+  // ── Toggle Voice Reply On/Off ─────────────────────────────────
+  const toggleVoiceReply = useCallback(() => {
+    setVoiceReplyEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(VOICE_PREF_KEY, String(next));
+      } catch (e) {
+        // ignore storage errors
+      }
+      if (!next) {
+        stopSpeaking();
+      }
+      return next;
+    });
+  }, [stopSpeaking]);
+
+  // ── Speak text via TTS ─────────────────────────────────────────
+  const speak = useCallback(
+    (text, msgIdx = null) => {
+      if (!("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+
+      // Clean markdown tags & asterisks for cleaner speech
+      const cleanText = text
+        .replace(/[*#_`~>]/g, "")
+        .replace(/\((?:Note|Tip):.*?\)/gi, "")
+        .replace(/\n+/g, ". ")
+        .trim();
+
+      if (!cleanText) return;
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        if (msgIdx !== null) setCurrentlySpeakingIdx(msgIdx);
+      };
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        setCurrentlySpeakingIdx(null);
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        setCurrentlySpeakingIdx(null);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    },
+    []
+  );
+
+  // Handle on-demand speaking/stopping of a specific message
+  const handleSpeakMessage = useCallback(
+    (text, msgIdx) => {
+      if (isSpeaking && currentlySpeakingIdx === msgIdx) {
+        stopSpeaking();
+      } else {
+        speak(text, msgIdx);
+      }
+    },
+    [isSpeaking, currentlySpeakingIdx, speak, stopSpeaking]
+  );
 
   // ── Load chat history on mount ────────────────────────────────
   useEffect(() => {
@@ -60,22 +144,21 @@ function App() {
 
         const formatted = history.flatMap((chat) => [
           { type: "user", text: chat.message },
-          { type: "bot",  text: chat.response },
+          { type: "bot", text: chat.response },
         ]);
 
         setMessages(formatted);
       } catch (err) {
         if (!cancelled) {
-          console.warn("Could not load chat history (backend may not be running):", err.message);
-          // Not a fatal error — app works without history
+          console.warn("Could not load chat history:", err.message);
         }
-      } finally {
-        // history load complete — could update a loading indicator here
       }
     };
 
     loadHistory();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── Image URL cleanup on unmount ───────────────────────────────
@@ -87,69 +170,78 @@ function App() {
     };
   }, []);
 
-  // ── TTS speak ─────────────────────────────────────────────────
-  const speak = useCallback((text) => {
-    if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    window.speechSynthesis.speak(utterance);
+  // Stop speech when component unmounts
+  useEffect(() => {
+    return () => {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
   }, []);
 
   // ── Send message ──────────────────────────────────────────────
-  const handleSend = useCallback(async (text) => {
-    const userText = text?.trim();
-    if (!userText || isSending) return;
+  const handleSend = useCallback(
+    async (text) => {
+      const userText = text?.trim();
+      if (!userText || isSending) return;
 
-    setIsSending(true);
-    setActiveView("chat");
+      stopSpeaking();
+      setIsSending(true);
+      setActiveView("chat");
 
-    setMessages((prev) => [...prev, { type: "user", text: userText }]);
+      const newMessages = [...messages, { type: "user", text: userText }];
+      setMessages(newMessages);
+      const botMsgIdx = newMessages.length; // index of forthcoming bot response
 
-    try {
-      const response = await getAIResponse(userText);
-
-      setMessages((prev) => [...prev, { type: "bot", text: response }]);
-
-      speak(response);
-
-      // Persist to backend (non-fatal if it fails)
       try {
-        await saveChat(USER_ID, userText, response);
+        const response = await getAIResponse(userText);
+
+        setMessages((prev) => [...prev, { type: "bot", text: response }]);
+
+        if (voiceReplyEnabled) {
+          speak(response, botMsgIdx);
+        }
+
+        // Persist to backend & local storage
+        try {
+          await saveChat(USER_ID, userText, response);
+        } catch (err) {
+          console.warn("Failed to persist chat:", err.message);
+        }
       } catch (err) {
-        console.warn("Failed to persist chat:", err.message);
+        console.error("Failed to get AI response:", err);
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "bot",
+            text: "⚠️ Unable to process your request. Please check your connection and try again.",
+          },
+        ]);
+      } finally {
+        setIsSending(false);
       }
-    } catch (err) {
-      console.error("Failed to get AI response:", err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          type: "bot",
-          text: "⚠️ Unable to process your request. Please check your connection and try again.",
-        },
-      ]);
-    } finally {
-      setIsSending(false);
-    }
-  }, [isSending, speak]);
+    },
+    [isSending, messages, voiceReplyEnabled, speak, stopSpeaking]
+  );
 
   // ── New conversation (clear local only) ───────────────────────
   const handleNewChat = useCallback(() => {
+    stopSpeaking();
     setMessages([]);
     setActiveView("chat");
-  }, []);
+  }, [stopSpeaking]);
 
   // ── Clear all history (with confirmation) ─────────────────────
   const handleClearHistory = useCallback(() => {
     setConfirmModal({
       title: "Delete all chat history?",
       description:
-        "This will permanently delete all saved conversations from the database. This action cannot be undone.",
+        "This will permanently delete all saved conversations from the database and local cache. This action cannot be undone.",
       confirmLabel: "Delete History",
       confirmDanger: true,
       onConfirm: async () => {
         setConfirmModal(null);
+        stopSpeaking();
         try {
           await clearChatHistory(USER_ID);
           setMessages([]);
@@ -158,33 +250,36 @@ function App() {
         }
       },
     });
-  }, []);
+  }, [stopSpeaking]);
 
   // ── Camera ────────────────────────────────────────────────────
   const handleToggleCamera = useCallback(() => {
     setShowCamera((prev) => !prev);
   }, []);
 
-  const handleCaptureImage = useCallback((e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleCaptureImage = useCallback(
+    (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-    // P1-6 fix: revoke previous object URL
-    if (previewImageRef.current) {
-      URL.revokeObjectURL(previewImageRef.current);
-    }
+      if (previewImageRef.current) {
+        URL.revokeObjectURL(previewImageRef.current);
+      }
 
-    const url = URL.createObjectURL(file);
-    previewImageRef.current = url;
-    setPreviewImage(url);
+      const url = URL.createObjectURL(file);
+      previewImageRef.current = url;
+      setPreviewImage(url);
 
-    const notice =
-      "📷 Image received. Image-based emergency analysis is not yet available — " +
-      "visual AI model support is pending. Please describe the emergency in text for guidance.";
+      const notice =
+        "📷 Image received. Image-based emergency analysis is in preview. Please describe the emergency in text for immediate guidance.";
 
-    setMessages((prev) => [...prev, { type: "bot", text: notice }]);
-    speak(notice);
-  }, [speak]);
+      setMessages((prev) => [...prev, { type: "bot", text: notice }]);
+      if (voiceReplyEnabled) {
+        speak(notice);
+      }
+    },
+    [voiceReplyEnabled, speak]
+  );
 
   // ── Render ────────────────────────────────────────────────────
   const renderView = () => {
@@ -200,33 +295,50 @@ function App() {
             onToggleCamera={handleToggleCamera}
             onCaptureImage={handleCaptureImage}
             previewImage={previewImage}
+            isOnline={isOnline}
+            // Voice reply controls
+            voiceReplyEnabled={voiceReplyEnabled}
+            isSpeaking={isSpeaking}
+            currentlySpeakingIdx={currentlySpeakingIdx}
+            onToggleVoiceReply={toggleVoiceReply}
+            onStopSpeaking={stopSpeaking}
+            onSpeakMessage={handleSpeakMessage}
+            onNewChat={handleNewChat}
           />
         );
+
       case "emergency":
         return (
           <EmergencyView
-            onAskAI={(text) => { handleSend(text); setActiveView("chat"); }}
+            onSelectTopic={(prompt) => {
+              setActiveView("chat");
+              handleSend(prompt);
+            }}
           />
         );
+
       case "voice":
         return (
           <VoiceView
-            onTranscript={(text) => { handleSend(text); setActiveView("chat"); }}
             isSending={isSending}
+            onTranscript={(text) => {
+              setActiveView("chat");
+              handleSend(text);
+            }}
           />
         );
-      case "camera":
-        setShowCamera(true);
-        setActiveView("chat");
-        return null;
+
       case "privacy":
         return (
           <PrivacyView
-            onClearAllData={handleClearHistory}
-            messageCount={messages.length}
             isOnline={isOnline}
+            messageCount={messages.length}
+            onClearAllData={handleClearHistory}
+            voiceReplyEnabled={voiceReplyEnabled}
+            onToggleVoiceReply={toggleVoiceReply}
           />
         );
+
       default:
         return null;
     }
@@ -234,21 +346,24 @@ function App() {
 
   return (
     <div className="app-shell">
-      {/* Sidebar */}
       <Sidebar
         activeView={activeView}
         onNavigate={setActiveView}
         onNewChat={handleNewChat}
         onClearHistory={handleClearHistory}
         collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+        onToggleCollapse={() => setSidebarCollapsed((p) => !p)}
         mobileOpen={mobileMenuOpen}
         onCloseMobile={() => setMobileMenuOpen(false)}
+        isOnline={isOnline}
+        voiceReplyEnabled={voiceReplyEnabled}
+        onToggleVoiceReply={toggleVoiceReply}
+        isSpeaking={isSpeaking}
+        onStopSpeaking={stopSpeaking}
       />
 
-      {/* Main content */}
       <div className="main-content">
-        {/* Mobile top bar */}
+        {/* Global SaaS Topbar */}
         <header className="topbar">
           <button
             className="topbar-menu-btn"
@@ -257,23 +372,49 @@ function App() {
           >
             ☰
           </button>
-          <span className="topbar-title">ResQ AI</span>
+          <div className="topbar-brand">
+            <span className="topbar-logo">+</span>
+            <span className="topbar-title">ResQ AI</span>
+            <span className="topbar-badge">Emergency Assistant</span>
+          </div>
+
           <div className="topbar-right">
-            <span
-              className="status-badge"
-              title={isOnline ? "Connected to backend" : "Offline — using local fallback"}
+            {/* Active Speech Indicator & Stop Control */}
+            {isSpeaking && (
+              <button
+                className="voice-speaking-pill active"
+                onClick={stopSpeaking}
+                title="Stop speaking voice response"
+              >
+                <span className="audio-wave">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+                <span>Stop Voice</span>
+              </button>
+            )}
+
+            {/* Voice Toggle */}
+            <button
+              className={`voice-toggle-btn ${voiceReplyEnabled ? "enabled" : "disabled"}`}
+              onClick={toggleVoiceReply}
+              title={voiceReplyEnabled ? "Voice replies are ON (Click to mute)" : "Voice replies are MUTED (Click to enable)"}
             >
+              {voiceReplyEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
+            </button>
+
+            {/* Network / Model Status Badge */}
+            <div className="status-badge" title={isOnline ? "Connected to Cloud AI & Local Rules" : "Offline First-Aid Triage Mode"}>
               <span className={`status-dot ${isOnline ? "online" : "offline"}`} />
-              {isOnline ? "Online" : "Offline"}
-            </span>
+              <span>{isOnline ? "Online" : "Offline"}</span>
+            </div>
           </div>
         </header>
 
-        {/* Active page view */}
         {renderView()}
       </div>
 
-      {/* Confirmation modal */}
       {confirmModal && (
         <ConfirmModal
           title={confirmModal.title}

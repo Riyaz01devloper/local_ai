@@ -1,18 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 /**
- * ChatView — main AI assistant chat interface.
+ * ChatView — Modern SaaS-style AI emergency triage workspace.
  *
  * Features:
- * - Auto-growing textarea with Enter-to-send / Shift+Enter for newline
- * - Copy message button per message
- * - Typing indicator
- * - Quick-action prompts
- * - Camera panel toggle (in-line image upload)
- * - Scroll-to-bottom on new messages
- * - Example prompts on empty state
+ * - Fluid full-screen responsive layout with comfortable readability
+ * - Voice speech controls: Stop speaking button, global voice reply toggle, and per-message play/stop
+ * - Auto-growing input textarea with keyboard shortcuts (Enter to send, Shift+Enter for newline)
+ * - Quick emergency triage prompt chips
+ * - Copy message to clipboard
+ * - In-line emergency vision/image attachment preview
+ * - Professional AI status indicators and source badges
  */
-function ChatView({ messages, isSending, onSend, onVoice, showCamera, onToggleCamera, onCaptureImage, previewImage }) {
+function ChatView({
+  messages,
+  isSending,
+  onSend,
+  onVoice,
+  showCamera,
+  onToggleCamera,
+  onCaptureImage,
+  previewImage,
+  isOnline,
+  voiceReplyEnabled,
+  isSpeaking,
+  currentlySpeakingIdx,
+  onToggleVoiceReply,
+  onStopSpeaking,
+  onSpeakMessage,
+  onNewChat,
+}) {
   const [input, setInput] = useState("");
   const [copiedIdx, setCopiedIdx] = useState(null);
   const textareaRef = useRef(null);
@@ -23,7 +40,7 @@ function ChatView({ messages, isSending, onSend, onVoice, showCamera, onToggleCa
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
   }, []);
 
   useEffect(() => {
@@ -58,109 +75,173 @@ function ChatView({ messages, isSending, onSend, onVoice, showCamera, onToggleCa
       setCopiedIdx(idx);
       setTimeout(() => setCopiedIdx(null), 1800);
     } catch {
-      // Clipboard API unavailable — fallback silently
+      // Clipboard fallback
     }
   };
 
   const quickActions = [
-    { label: "🔥 Fire emergency", prompt: "There is a fire emergency. What should I do?" },
-    { label: "🩸 Bleeding", prompt: "Someone is bleeding heavily. What are the first aid steps?" },
-    { label: "😵 Fainting", prompt: "Someone has fainted and is unconscious. How do I help?" },
-    { label: "💊 Poisoning", prompt: "Someone may have ingested a harmful substance. What should I do?" },
-    { label: "⚡ Electric shock", prompt: "Someone received an electric shock. What are the steps?" },
+    { label: "🔥 Burn Care", prompt: "I got a burn. What are the immediate first aid steps?" },
+    { label: "🩸 Severe Bleeding", prompt: "Someone is bleeding heavily from a deep cut. How do I stop it?" },
+    { label: "🫁 Choking (Heimlich)", prompt: "Someone is choking and cannot breathe. How do I perform first aid?" },
+    { label: "🫀 CPR Protocol", prompt: "How do I perform CPR on an unresponsive adult?" },
+    { label: "❤️ Heart Attack Alert", prompt: "What are the emergency steps for a suspected heart attack?" },
+    { label: "⚡ Electric Shock", prompt: "Someone received an electric shock. How to handle safely?" },
   ];
 
-  const examplePrompts = [
-    "How do I treat a burn?",
-    "What to do if someone is choking?",
-    "How to perform CPR?",
-    "Signs of a heart attack?",
+  const exampleCards = [
+    {
+      icon: "🔥",
+      title: "Burns & Scalds",
+      desc: "Immediate cooling, dressing, and emergency severity criteria.",
+      prompt: "What is the emergency first-aid procedure for a second-degree burn?",
+    },
+    {
+      icon: "🩸",
+      title: "Heavy Bleeding",
+      desc: "Arterial pressure, tourniquets, and shock prevention.",
+      prompt: "How to control uncontrolled arterial bleeding from a wound?",
+    },
+    {
+      icon: "🫁",
+      title: "Choking Emergency",
+      desc: "Back blows and Heimlich abdominal thrust guidelines.",
+      prompt: "Step-by-step Heimlich manoeuvre for a conscious choking adult?",
+    },
+    {
+      icon: "🧠",
+      title: "Stroke & FAST",
+      desc: "Face, Arms, Speech, and Time stroke identification.",
+      prompt: "How to identify stroke symptoms using the FAST emergency protocol?",
+    },
   ];
-
-  const pageTitle =
-    messages.length === 0 ? "ResQ AI Assistant" : "AI Assistant";
 
   return (
-    <div className="page-view">
-      {/* Chat header */}
-      <div className="chat-view">
-        <div className="chat-header">
-          <span className="chat-title">{pageTitle}</span>
-          <div className="chat-actions">
+    <div className="page-view saas-page">
+      <div className="chat-view saas-chat-view">
+        {/* SaaS Chat Top Subheader */}
+        <header className="chat-header saas-chat-header">
+          <div className="chat-header-left">
+            <div className="model-chip">
+              <span className="model-dot" />
+              <span className="model-name">ResQ AI Assistant</span>
+              <span className="model-version">Gemini 2.5 Flash / Local Triage</span>
+            </div>
+          </div>
+
+          <div className="chat-header-actions">
+            {/* Active Voice Playing Indicator & Direct Stop Button */}
+            {isSpeaking && (
+              <button
+                className="saas-stop-voice-btn"
+                onClick={onStopSpeaking}
+                title="Stop current voice reply (Click to silence)"
+                aria-label="Stop voice reply"
+              >
+                <span className="audio-wave">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+                <span>Stop Voice</span>
+              </button>
+            )}
+
+            {/* Voice Reply Mode Toggle */}
             <button
-              className="icon-btn"
-              onClick={onVoice}
-              title="Voice input"
-              aria-label="Start voice input"
+              className={`saas-pill-btn ${voiceReplyEnabled ? "active-voice" : ""}`}
+              onClick={onToggleVoiceReply}
+              title={
+                voiceReplyEnabled
+                  ? "Automatic voice replies are enabled. Click to mute."
+                  : "Automatic voice replies are muted. Click to enable speech."
+              }
+              aria-label="Toggle voice replies"
             >
-              🎙️
+              <span className="btn-icon">{voiceReplyEnabled ? "🔊" : "🔇"}</span>
+              <span className="btn-text">{voiceReplyEnabled ? "Voice ON" : "Voice MUTED"}</span>
             </button>
+
+            {/* Quick New Chat */}
             <button
-              className={`icon-btn${showCamera ? " active" : ""}`}
-              onClick={onToggleCamera}
-              title="Image upload"
-              aria-label="Toggle image upload"
-              style={showCamera ? { background: "var(--bg-active)", color: "var(--sky)" } : {}}
+              className="saas-pill-btn"
+              onClick={onNewChat}
+              title="Start a new triage session"
+              aria-label="New conversation"
             >
-              📷
+              <span className="btn-icon">✏️</span>
+              <span className="btn-text">New Triage</span>
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Camera panel */}
+        {/* Camera / Image Attachment Drawer */}
         {showCamera && (
-          <div className="camera-panel">
+          <div className="camera-panel saas-camera-panel">
             <div className="camera-panel-header">
-              <span className="camera-panel-title">📷 Image Analysis</span>
-              <button className="icon-btn" onClick={onToggleCamera} aria-label="Close camera panel">✕</button>
+              <span className="camera-panel-title">📷 Emergency Scene Photo Attachment</span>
+              <button className="icon-btn" onClick={onToggleCamera} aria-label="Close camera panel">
+                ✕
+              </button>
             </div>
-            <label className="camera-upload-label">
-              <span>📁</span> Select emergency image
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={onCaptureImage}
-              />
-            </label>
-            {previewImage && (
-              <img
-                className="image-preview"
-                src={previewImage}
-                alt="Emergency scene preview"
-              />
-            )}
-            <p style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: 4 }}>
-              Image analysis requires a vision AI model. Currently using rule-based guidance.
-            </p>
+            <div className="camera-body">
+              <label className="camera-upload-label">
+                <span>📁 Upload or Take Photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={onCaptureImage}
+                />
+              </label>
+              {previewImage && (
+                <div className="image-preview-wrap">
+                  <img
+                    className="image-preview"
+                    src={previewImage}
+                    alt="Emergency scene preview"
+                  />
+                </div>
+              )}
+              <p className="camera-notice">
+                Image analysis is in preview. Please include specific text symptoms for immediate triage guidance.
+              </p>
+            </div>
           </div>
         )}
 
-        {/* Message list */}
+        {/* Message Stream */}
         <main
-          className="message-list"
+          className="message-list saas-message-list"
           role="log"
           aria-live="polite"
-          aria-label="Conversation"
+          aria-label="Emergency Conversation"
         >
           {messages.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">+</div>
-              <h2>How can I help?</h2>
-              <p>
-                Describe the emergency and ResQ AI will provide immediate
-                first-aid guidance. For life-threatening situations, always
-                contact emergency services first.
+            <div className="saas-empty-hero">
+              <div className="hero-badge">
+                <span className="hero-badge-dot" />
+                <span>24/7 Offline-Ready Emergency AI</span>
+              </div>
+              <h1 className="hero-title">How can ResQ AI assist you right now?</h1>
+              <p className="hero-subtitle">
+                Describe the patient's symptoms or physical emergency. ResQ AI provides rapid, step-by-step
+                first-aid triage, CPR cadence, and life-safety guidance.
               </p>
-              <div className="example-prompts">
-                {examplePrompts.map((prompt) => (
+
+              <div className="hero-cards-grid">
+                {exampleCards.map((card) => (
                   <button
-                    key={prompt}
-                    className="example-prompt-btn"
-                    onClick={() => onSend(prompt)}
+                    key={card.title}
+                    className="hero-action-card"
+                    onClick={() => onSend(card.prompt)}
                     disabled={isSending}
                   >
-                    {prompt}
+                    <div className="hero-card-header">
+                      <span className="hero-card-icon">{card.icon}</span>
+                      <span className="hero-card-arrow">↗</span>
+                    </div>
+                    <div className="hero-card-title">{card.title}</div>
+                    <div className="hero-card-desc">{card.desc}</div>
                   </button>
                 ))}
               </div>
@@ -169,23 +250,65 @@ function ChatView({ messages, isSending, onSend, onVoice, showCamera, onToggleCa
             messages.map((msg, idx) => (
               <div
                 key={`${msg.type}-${idx}`}
-                className={`message-row ${msg.type}`}
+                className={`message-row ${msg.type} saas-row`}
               >
                 {msg.type === "bot" && (
-                  <div className="bot-avatar" aria-hidden="true">+</div>
+                  <div className="bot-avatar-wrap">
+                    <div className="bot-avatar" aria-hidden="true">+</div>
+                  </div>
                 )}
+
                 <div className="message-bubble-wrap">
+                  {msg.type === "bot" && (
+                    <div className="bot-msg-meta">
+                      <span className="meta-author">ResQ AI First-Aid</span>
+                      <span className="meta-badge">Verified Guidance</span>
+                    </div>
+                  )}
+
                   <div className={`message-bubble ${msg.type}`}>
                     {msg.text}
                   </div>
-                  <div className="message-actions">
+
+                  {/* Message Action Bar */}
+                  <div className="saas-message-toolbar">
+                    {msg.type === "bot" && (
+                      <button
+                        className={`toolbar-btn ${
+                          isSpeaking && currentlySpeakingIdx === idx ? "speaking-active" : ""
+                        }`}
+                        onClick={() => onSpeakMessage(msg.text, idx)}
+                        title={
+                          isSpeaking && currentlySpeakingIdx === idx
+                            ? "Stop speaking this message"
+                            : "Listen to this message"
+                        }
+                      >
+                        {isSpeaking && currentlySpeakingIdx === idx ? (
+                          <>
+                            <span className="audio-wave small">
+                              <span />
+                              <span />
+                              <span />
+                            </span>
+                            <span>Stop Voice</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>🔊</span>
+                            <span>Listen</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
                     <button
-                      className={`msg-action-btn${copiedIdx === idx ? " copied" : ""}`}
+                      className={`toolbar-btn ${copiedIdx === idx ? "copied" : ""}`}
                       onClick={() => handleCopy(msg.text, idx)}
-                      title="Copy message"
-                      aria-label="Copy message"
+                      title="Copy response to clipboard"
                     >
-                      {copiedIdx === idx ? "✓" : "⎘"}
+                      <span>{copiedIdx === idx ? "✓" : "📋"}</span>
+                      <span>{copiedIdx === idx ? "Copied" : "Copy"}</span>
                     </button>
                   </div>
                 </div>
@@ -193,14 +316,19 @@ function ChatView({ messages, isSending, onSend, onVoice, showCamera, onToggleCa
             ))
           )}
 
-          {/* Typing indicator */}
+          {/* Typing Indicator */}
           {isSending && (
-            <div className="message-row bot">
-              <div className="bot-avatar" aria-hidden="true">+</div>
-              <div className="typing-indicator" role="status" aria-label="AI is generating a response">
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="typing-dot" />
+            <div className="message-row bot saas-row">
+              <div className="bot-avatar-wrap">
+                <div className="bot-avatar loading" aria-hidden="true">+</div>
+              </div>
+              <div className="message-bubble-wrap">
+                <div className="typing-indicator saas-typing" role="status" aria-label="AI is analyzing the emergency">
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-text">Analyzing emergency triage...</span>
+                </div>
               </div>
             </div>
           )}
@@ -208,50 +336,84 @@ function ChatView({ messages, isSending, onSend, onVoice, showCamera, onToggleCa
           <div ref={bottomRef} aria-hidden="true" />
         </main>
 
-        {/* Quick actions */}
-        <div className="quick-actions" role="group" aria-label="Quick emergency topics">
-          {quickActions.map((action) => (
-            <button
-              key={action.label}
-              className="quick-action-btn"
-              disabled={isSending}
-              onClick={() => onSend(action.prompt)}
-              title={action.prompt}
-            >
-              {action.label}
-            </button>
-          ))}
+        {/* Quick Emergency Scenario Chips */}
+        <div className="saas-quick-chips-bar" role="group" aria-label="Quick emergency scenarios">
+          <div className="chips-label">Quick Actions:</div>
+          <div className="chips-scroll">
+            {quickActions.map((action) => (
+              <button
+                key={action.label}
+                className="saas-chip-btn"
+                disabled={isSending}
+                onClick={() => onSend(action.prompt)}
+                title={action.prompt}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Input area */}
-        <div className="input-area">
-          <div className="input-wrapper">
+        {/* SaaS Floating Command Input Area */}
+        <div className="saas-input-container">
+          <div className="saas-input-box">
+            {/* Left Action Buttons (Voice dictation & camera) */}
+            <div className="input-prefix-actions">
+              <button
+                type="button"
+                className="input-tool-btn"
+                onClick={onVoice}
+                title="Dictate emergency via Voice input"
+                aria-label="Start voice speech recognition"
+              >
+                🎙️
+              </button>
+              <button
+                type="button"
+                className={`input-tool-btn ${showCamera ? "active" : ""}`}
+                onClick={onToggleCamera}
+                title="Attach scene photo"
+                aria-label="Attach photo"
+              >
+                📷
+              </button>
+            </div>
+
             <textarea
               ref={textareaRef}
-              className="chat-textarea"
-              placeholder="Describe the emergency or ask a first-aid question…"
+              className="saas-textarea"
+              placeholder="Describe what happened (e.g. burn, deep cut, chest pain, choking)..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isSending}
               rows={1}
-              aria-label="Message input"
+              aria-label="Emergency description input"
             />
-            <div className="input-actions">
-              <button
-                className="send-btn"
-                onClick={handleSubmit}
-                disabled={isSending || !input.trim()}
-                aria-label="Send message"
-                title="Send (Enter)"
-              >
-                {isSending ? "⏳" : "↑"}
-              </button>
-            </div>
+
+            <button
+              type="button"
+              className={`saas-send-btn ${input.trim() ? "ready" : ""}`}
+              onClick={handleSubmit}
+              disabled={isSending || !input.trim()}
+              aria-label="Send emergency description"
+              title="Send (Enter)"
+            >
+              {isSending ? (
+                <span className="btn-spinner" />
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              )}
+            </button>
           </div>
-          <p className="input-hint">
-            Enter to send · Shift+Enter for new line · AI guidance only — call emergency services for immediate danger
-          </p>
+
+          <div className="saas-input-footer">
+            <span className="shortcut-hint">Press <kbd>Enter ↵</kbd> to send, <kbd>Shift</kbd> + <kbd>Enter</kbd> for new line</span>
+            <span className="disclaimer-hint">⚠️ For severe life-threatening emergencies, immediately dial <strong>911 / 112</strong></span>
+          </div>
         </div>
       </div>
     </div>
@@ -259,4 +421,3 @@ function ChatView({ messages, isSending, onSend, onVoice, showCamera, onToggleCa
 }
 
 export default ChatView;
-

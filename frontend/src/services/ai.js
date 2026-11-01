@@ -1,11 +1,10 @@
 /**
- * AI service — calls the backend Gemini/rule-engine endpoint.
- * Falls back to the local keyword matcher if the backend is unreachable.
- *
- * Fixes P1-2: frontend now actually uses the Gemini backend.
+ * AI service — calls the backend Gemini / rule-engine endpoint.
+ * In production on Vercel, requests route to same-origin /api/gemini.
+ * Falls back to the local keyword matcher if the network is offline.
  */
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 export async function getAIResponse(input) {
   try {
@@ -28,42 +27,41 @@ export async function getAIResponse(input) {
 
     return localSmartResponse(input);
   } catch (err) {
-    // Backend unreachable (offline or server not running) — use local fallback
-    console.warn("Backend unreachable, using offline fallback:", err.message);
+    // Offline or server not running — use local offline fallback
+    console.warn("Backend request not reachable, using offline emergency guidance:", err.message);
     return localSmartResponse(input);
   }
 }
 
 /**
- * Local rule-based fallback — works fully offline.
- * Intentionally simple. The backend ruleEngine.js has the richer version.
+ * Local rule-based emergency triage fallback — works fully offline without network access.
  */
 function localSmartResponse(input) {
   const text = input.toLowerCase().replace(/[^a-z\s]/g, "");
 
-  if (text.includes("burn") || text.includes("burnt") || text.includes("burned")) {
-    return `🔥 Burn First Aid\n\n1. Cool the burn under cool running water for at least 20 minutes.\n2. Do NOT apply ice, butter, or toothpaste.\n3. Cover with a clean, non-fluffy dressing.\n4. Remove rings or tight items near the burn.\n5. Seek medical help for severe burns.\n\n⚠️ This is offline guidance — backend is not reachable.`;
+  if (text.includes("burn") || text.includes("burnt") || text.includes("burned") || text.includes("scald")) {
+    return `🔥 Burn First Aid:\n\n1. Cool the burn under cold running water for at least 20 minutes.\n2. Do NOT apply ice, oil, butter, or toothpaste.\n3. Cover loosely with a clean, sterile non-stick cloth or plastic cling film.\n4. Remove rings or tight clothing before swelling begins.\n5. Seek immediate medical help if the burn is large or affects face/joints.\n\n*(Offline Triage Mode active)*`;
   }
 
-  if (text.includes("cut") || text.includes("bleeding") || text.includes("blood")) {
-    return `🩸 Bleeding First Aid\n\n1. Apply firm pressure with a clean cloth.\n2. Raise the injured area above heart level if possible.\n3. Keep pressure on until bleeding stops.\n4. If bleeding is severe or won't stop, call emergency services immediately.\n\n⚠️ This is offline guidance — backend is not reachable.`;
+  if (text.includes("cut") || text.includes("bleeding") || text.includes("blood") || text.includes("wound")) {
+    return `🩸 Bleeding First Aid:\n\n1. Apply firm, continuous direct pressure with a clean cloth or bandage.\n2. Elevate the injured area above the heart if possible.\n3. Keep sustained pressure — do not remove the cloth to check.\n4. If blood soaks through, add another cloth on top.\n5. For uncontrolled bleeding, call emergency services (911/112) immediately.\n\n*(Offline Triage Mode active)*`;
   }
 
-  if (text.includes("faint") || text.includes("unconscious") || text.includes("collapsed")) {
-    return `😵 Fainting\n\n1. Lay the person flat on their back.\n2. Raise their legs slightly.\n3. Loosen tight clothing.\n4. Check for breathing and pulse.\n5. If unconscious for more than 1 minute, call emergency services.\n\n⚠️ This is offline guidance — backend is not reachable.`;
+  if (text.includes("faint") || text.includes("unconscious") || text.includes("collapsed") || text.includes("passed out")) {
+    return `😵 Fainting / Unresponsiveness:\n\n1. Lay the person flat on their back in a safe area.\n2. Raise their legs 12 inches (30 cm) to restore blood flow to the brain.\n3. Loosen restrictive clothing around collar and waist.\n4. Verify breathing and airway clearance.\n5. If unresponsive for over 1 minute, call emergency services immediately.\n\n*(Offline Triage Mode active)*`;
   }
 
-  if (text.includes("fire") || text.includes("smoke")) {
-    return `🔥 Fire Emergency\n\n1. Alert everyone and activate the fire alarm.\n2. Call emergency services immediately.\n3. Evacuate via the nearest safe exit — do NOT use lifts.\n4. Stay low to avoid smoke.\n5. If trapped, close doors and signal from a window.\n\n⚠️ This is offline guidance — backend is not reachable.`;
+  if (text.includes("fire") || text.includes("smoke") || text.includes("flame")) {
+    return `🔥 Fire Emergency:\n\n1. Alert occupants and evacuate immediately via the nearest fire exit.\n2. Stay low under the smoke where air is clearer.\n3. Never use elevators during a fire.\n4. If clothes catch fire: STOP, DROP, and ROLL.\n5. Call emergency services once safe outside — do not re-enter.\n\n*(Offline Triage Mode active)*`;
   }
 
-  if (text.includes("chok") || text.includes("airway") || text.includes("breathing")) {
-    return `🫁 Choking\n\n1. Encourage coughing if the person is conscious.\n2. Give up to 5 firm back blows between shoulder blades.\n3. If that fails, perform up to 5 abdominal thrusts (Heimlich).\n4. Alternate back blows and abdominal thrusts.\n5. Call emergency services if the obstruction does not clear.\n\n⚠️ This is offline guidance — backend is not reachable.`;
+  if (text.includes("chok") || text.includes("airway") || text.includes("cannot breathe") || text.includes("cant breathe")) {
+    return `🫁 Choking Emergency:\n\n1. Encourage forceful coughing if the person is conscious.\n2. Deliver 5 sharp back blows between shoulder blades with the heel of your hand.\n3. If blocked, perform 5 abdominal thrusts (Heimlich manoeuvre).\n4. Repeat cycles of 5 back blows and 5 abdominal thrusts.\n5. Call emergency services (911/112) immediately if obstruction persists.\n\n*(Offline Triage Mode active)*`;
   }
 
   if (text.includes("heart") || text.includes("chest pain") || text.includes("cardiac")) {
-    return `❤️ Heart Attack\n\n1. Call emergency services IMMEDIATELY.\n2. Have the person sit or lie comfortably.\n3. Loosen tight clothing.\n4. If conscious and not allergic, aspirin (300 mg) may help — chew slowly.\n5. Begin CPR if the person becomes unresponsive and not breathing normally.\n\n⚠️ This is offline guidance — backend is not reachable.`;
+    return `❤️ Heart Attack / Cardiac Alert:\n\n1. CALL EMERGENCY SERVICES IMMEDIATELY (911 / 112 / 999).\n2. Sit the person comfortably on the floor with back supported.\n3. Loosen tight clothing around neck and chest.\n4. If conscious and not allergic, chew an adult aspirin (300 mg) slowly.\n5. Monitor continuously and prepare CPR if breathing ceases.\n\n*(Offline Triage Mode active)*`;
   }
 
-  return `⚠️ Stay calm and ensure immediate safety.\n\nFor life-threatening emergencies, call your local emergency services immediately (e.g. 911 / 999 / 112).\n\nDescribe the emergency in more detail for specific first-aid guidance.\n\nNote: The AI backend is currently unreachable. Check that the backend server is running.`;
+  return `⚠️ Emergency First Aid Guidance:\n\n1. Assess immediate danger to yourself and the patient.\n2. Check for responsiveness and verify if the person is breathing.\n3. Call local emergency services immediately (911 / 112 / 999) for urgent threats.\n4. Keep the person calm, comfortable, and warm.\n5. Provide clear details of the injury for specific step-by-step triage guidance.`;
 }

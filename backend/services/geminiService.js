@@ -1,18 +1,28 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+let genAI = null;
+if (process.env.GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+}
+
+const models = [
+  "gemini-1.5-flash-latest",
+  "gemini-1.5-flash",
+  "gemini-2.0-flash",
+  "gemini-2.5-flash",
+  "gemini-pro"
+];
 
 async function generateEmergencyResponse(userMessage) {
-  try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        maxOutputTokens: 200,
-        temperature: 0.2,
-      },
-    });
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not configured");
+  }
 
-    const prompt = `You are an emergency first-aid assistant.
+  if (!genAI) {
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  }
+
+  const prompt = `You are an emergency first-aid assistant.
 
 Rules:
 - Maximum 5 numbered steps.
@@ -22,13 +32,29 @@ Rules:
 
 User: ${userMessage}`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
-  } catch (err) {
-    console.error("Gemini Error:", err.message || err);
-    throw err;
+  let lastError = null;
+  for (const modelName of models) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          maxOutputTokens: 200,
+          temperature: 0.2,
+        },
+      });
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+      if (text && text.trim()) {
+        return text.trim();
+      }
+    } catch (err) {
+      lastError = err;
+    }
   }
+
+  throw lastError || new Error("Failed to generate content with Gemini models");
 }
 
 module.exports = {

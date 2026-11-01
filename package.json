@@ -1,0 +1,12 @@
+{
+  "name": "resq-ai-emergency-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI Emergency Assistant with Gemini and local first-aid triage",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1"
+  }
+}
